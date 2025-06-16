@@ -1,5 +1,5 @@
 import React from 'react';
-import { styled, useTheme } from '@mui/material/styles';
+import { styled, useTheme, alpha } from '@mui/material/styles';
 import Box from '@mui/material/Box';
 import List from '@mui/material/List';
 import ListItem from '@mui/material/ListItem';
@@ -8,6 +8,9 @@ import ListItemText from '@mui/material/ListItemText';
 import Drawer from '@mui/material/Drawer';
 import IconButton from '@mui/material/IconButton';
 import Typography from '@mui/material/Typography';
+import Avatar from '@mui/material/Avatar';
+import Divider from '@mui/material/Divider';
+import Badge from '@mui/material/Badge';
 import DashboardIcon from '@mui/icons-material/Dashboard';
 import HomeIcon from '@mui/icons-material/Home';
 import SecurityIcon from '@mui/icons-material/Security';
@@ -20,7 +23,6 @@ import Brightness4Icon from '@mui/icons-material/Brightness4';
 import LogoutIcon from '@mui/icons-material/Logout';
 import { motion } from 'framer-motion';
 import { Link, useLocation } from 'react-router-dom';
-import { Switch } from '@mui/material';
 
 const drawerWidth = 280;
 
@@ -31,12 +33,12 @@ const StyledDrawer = styled(Drawer)(({ theme }) => ({
     width: drawerWidth,
     boxSizing: 'border-box',
     background: theme.palette.mode === 'dark' 
-      ? 'rgba(26, 26, 26, 0.9)'
-      : 'rgba(255, 255, 255, 0.9)',
+      ? alpha(theme.palette.background.paper, 0.9)
+      : alpha(theme.palette.background.paper, 0.9),
     backdropFilter: 'blur(10px)',
     borderRight: `1px solid ${theme.palette.mode === 'dark' 
-      ? 'rgba(255, 255, 255, 0.1)'
-      : 'rgba(0, 0, 0, 0.1)'}`,
+      ? alpha(theme.palette.divider, 0.1)
+      : alpha(theme.palette.divider, 0.1)}`,
     boxShadow: theme.shadows[4],
   },
 }));
@@ -47,13 +49,13 @@ const StyledListItem = styled(ListItem)(({ theme, active }) => ({
   transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
   backgroundColor: active 
     ? theme.palette.mode === 'dark'
-      ? 'rgba(255, 255, 255, 0.1)'
-      : 'rgba(0, 0, 0, 0.05)'
+      ? alpha(theme.palette.primary.main, 0.1)
+      : alpha(theme.palette.primary.main, 0.1)
     : 'transparent',
   '&:hover': {
     backgroundColor: theme.palette.mode === 'dark'
-      ? 'rgba(255, 255, 255, 0.1)'
-      : 'rgba(0, 0, 0, 0.05)',
+      ? alpha(theme.palette.primary.main, 0.1)
+      : alpha(theme.palette.primary.main, 0.1),
     transform: 'translateX(8px)',
   },
   '& .MuiListItemIcon-root': {
@@ -71,8 +73,8 @@ const ThemeToggle = styled(IconButton)(({ theme }) => ({
   '&:hover': {
     transform: 'rotate(180deg)',
     backgroundColor: theme.palette.mode === 'dark'
-      ? 'rgba(255, 255, 255, 0.1)'
-      : 'rgba(0, 0, 0, 0.05)',
+      ? alpha(theme.palette.primary.main, 0.1)
+      : alpha(theme.palette.primary.main, 0.1),
   },
 }));
 
@@ -95,7 +97,6 @@ const menuItems = ({ isAuthenticated, isGuest }) => [
 
 export default function Sidebar({ currentPage, setCurrentPage, authenticated, isGuest, themeMode, setThemeMode, onLogout }) {
   const theme = useTheme();
-  const [open, setOpen] = React.useState(false);
   const location = useLocation();
 
   const items = menuItems({ isAuthenticated: authenticated, isGuest });
@@ -115,8 +116,8 @@ export default function Sidebar({ currentPage, setCurrentPage, authenticated, is
         alignItems: 'center', 
         p: 3,
         borderBottom: `1px solid ${theme.palette.mode === 'dark' 
-          ? 'rgba(255, 255, 255, 0.1)'
-          : 'rgba(0, 0, 0, 0.1)'}`,
+          ? alpha(theme.palette.divider, 0.1)
+          : alpha(theme.palette.divider, 0.1)}`,
       }}>
         <Typography 
           variant="h5" 
@@ -133,14 +134,37 @@ export default function Sidebar({ currentPage, setCurrentPage, authenticated, is
           Smart Home
         </Typography>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, ml: 'auto' }}>
-          <Typography variant="body2" color="text.secondary">
-            {themeMode === 'dark' ? 'Dark' : 'Light'}
-          </Typography>
           <ThemeToggle onClick={toggleTheme} size="small">
             {themeMode === 'dark' ? <Brightness7Icon /> : <Brightness4Icon />}
           </ThemeToggle>
         </Box>
       </Box>
+
+      {authenticated && !isGuest && (
+        <>
+          <Box sx={{ p: 2, display: 'flex', alignItems: 'center', gap: 2 }}>
+            <Avatar 
+              sx={{ 
+                width: 40, 
+                height: 40,
+                background: `linear-gradient(45deg, ${theme.palette.primary.main} 30%, ${theme.palette.primary.light} 90%)`,
+              }}
+            >
+              <PersonIcon />
+            </Avatar>
+            <Box>
+              <Typography variant="subtitle1" sx={{ fontWeight: 'bold' }}>
+                John Doe
+              </Typography>
+              <Typography variant="body2" color="text.secondary">
+                Administrator
+              </Typography>
+            </Box>
+          </Box>
+          <Divider />
+        </>
+      )}
+
       <List sx={{ px: 2, py: 1 }}>
         {items.map((item, index) => (
           <motion.div
@@ -153,15 +177,16 @@ export default function Sidebar({ currentPage, setCurrentPage, authenticated, is
               button 
               component={Link}
               to={item.path}
-              sx={{
-                color: location.pathname === item.path ? 'primary.main' : 'text.primary',
-                '&:hover': {
-                  backgroundColor: theme.palette.mode === 'dark' ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.04)',
-                },
-              }}
+              active={location.pathname === item.path ? 1 : 0}
             >
-              <ListItemIcon sx={{ color: location.pathname === item.path ? 'primary.main' : 'inherit' }}>
+              <ListItemIcon>
+                {item.text === 'Messages' ? (
+                  <Badge badgeContent={3} color="error">
                 {item.icon}
+                  </Badge>
+                ) : (
+                  item.icon
+                )}
               </ListItemIcon>
               <ListItemText primary={item.text} />
             </StyledListItem>
