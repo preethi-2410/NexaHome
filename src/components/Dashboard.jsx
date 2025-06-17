@@ -49,6 +49,9 @@ import HistoryIcon from '@mui/icons-material/History';
 import AnalyticsIcon from '@mui/icons-material/Analytics';
 import TrendingUpIcon from '@mui/icons-material/TrendingUp';
 import TrendingDownIcon from '@mui/icons-material/TrendingDown';
+import DeviceSwitch from './DeviceSwitch';
+import Chip from '@mui/material/Chip';
+import axios from 'axios'; // Import axios
 
 // Recharts components
 const RechartsLineChart = LineChart;
@@ -1097,6 +1100,29 @@ const ViewAllButton = styled(Button)(({ theme }) => ({
   },
 }));
 
+// Hardcoded house members for now
+const houseMembers = ['Alex', 'Priya', 'Sam'];
+
+// Utility functions for device and room stats
+const getDeviceStats = (roomsData) => {
+  let total = 0, on = 0;
+  Object.values(roomsData).forEach(room => {
+    if (room.devices) {
+      total += room.devices.length;
+      on += room.devices.filter(d => d.status).length;
+    }
+  });
+  return { total, on };
+};
+const getRoomStats = (roomsData) => {
+  let total = Object.keys(roomsData).length;
+  let occupied = 0;
+  Object.values(roomsData).forEach(room => {
+    if (room.devices && room.devices.some(d => d.status)) occupied++;
+  });
+  return { total, occupied };
+};
+
 const Dashboard = ({ isGuest, discoveredDevices = [], roomsData, setRoomsData, username }) => {
   const navigate = useNavigate();
   const [currentTime, setCurrentTime] = React.useState(new Date());
@@ -1425,12 +1451,15 @@ const Dashboard = ({ isGuest, discoveredDevices = [], roomsData, setRoomsData, u
     showToast(newNotification.message, newNotification.type);
   };
 
-  // Modify the handleDeviceToggle function to include notifications
-  const handleDeviceToggle = (room, deviceName) => {
+  // Modify the handleDeviceToggle function to include notifications and API call
+  const handleDeviceToggle = async (room, deviceName) => {
+    // Define newStatus here so it's accessible throughout the function
+    let newStatus;
+
     setRoomsData(prevRoomsData => {
       const newRoomsData = { ...prevRoomsData };
       const device = newRoomsData[room].devices.find(d => d.name === deviceName);
-      const newStatus = !device.status;
+      newStatus = !device.status; // Assign to the outer scoped newStatus
       
       newRoomsData[room] = { 
         ...newRoomsData[room],
@@ -1444,6 +1473,30 @@ const Dashboard = ({ isGuest, discoveredDevices = [], roomsData, setRoomsData, u
       
       return newRoomsData;
     });
+
+    // Send POST request to Node-RED (or other backend) to toggle the device
+    try {
+      await axios.post('http://localhost:1880/api/toggle-device', {
+        deviceName: deviceName,
+        status: newStatus
+      });
+      console.log(`Successfully toggled ${deviceName} to ${newStatus ? 'ON' : 'OFF'}`);
+    } catch (error) {
+      console.error('Error toggling device:', error);
+      showToast(`Failed to toggle ${deviceName}. Please try again.`, 'error');
+      // Revert local state if API call fails (optional, depends on desired UX)
+      setRoomsData(prevRoomsData => {
+        const newRoomsData = { ...prevRoomsData };
+        const device = newRoomsData[room].devices.find(d => d.name === deviceName);
+        newRoomsData[room] = { 
+          ...newRoomsData[room],
+          devices: newRoomsData[room].devices.map(d => 
+            d.name === deviceName ? { ...d, status: !newStatus } : d
+          )
+        };
+        return newRoomsData;
+      });
+    }
   };
 
   const WelcomeBanner = styled(Box)(({ theme }) => ({
@@ -1543,81 +1596,79 @@ const Dashboard = ({ isGuest, discoveredDevices = [], roomsData, setRoomsData, u
 
   const [expandedSummary, setExpandedSummary] = useState(null);
 
+  const deviceStats = getDeviceStats(roomsData);
+  const roomStats = getRoomStats(roomsData);
+
   return (
-    <Box sx={{ p: 4 }}>
+    <Box sx={{ p: 3 }}>
+      {/* Removed DeviceSwitch component at the top */}
+      
       <DashboardBanner>
-        <Grid container spacing={4} alignItems="center">
-          <Grid item xs={12} md={6}>
-            <motion.div
-              initial={{ opacity: 0, x: -20 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ duration: 0.5 }}
-            >
-              <UserGreeting>
-                <StyledAvatar sx={{ width: 72, height: 72, fontSize: 32 }}>
-                  {getAvatarInitials(username)}
-                </StyledAvatar>
-                <Box>
-                  <Typography
-                    variant="h3"
-                    sx={{
-                      fontWeight: 'bold',
-                      background: 'linear-gradient(45deg, #2196F3 30%, #21CBF3 90%)',
-                      backgroundClip: 'text',
-                      textFillColor: 'transparent',
-                      WebkitBackgroundClip: 'text',
-                      WebkitTextFillColor: 'transparent',
-                      mb: 2,
-                    }}
-                  >
-                    {getTimeGreeting()}, {username}!
-                  </Typography>
-                  <Typography variant="h6" color="text.secondary">
-                    Welcome to your Smart Home Dashboard
-                  </Typography>
-                </Box>
-              </UserGreeting>
-            </motion.div>
-          </Grid>
-          <Grid item xs={12} md={6}>
-            <motion.div
-              initial={{ opacity: 0, x: 20 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ duration: 0.5, delay: 0.2 }}
-            >
-              <WeatherInfo>
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 3 }}>
-                  {getWeatherIcon(mockTemperatureData.condition)}
-                  <Box>
-                    <Typography variant="h4" sx={{ fontWeight: 'bold' }}>
-                      {mockTemperatureData.current}°C
-                    </Typography>
-                    <Typography variant="h6" color="text.secondary">
-                      Feels like {mockTemperatureData.feelsLike}°C
-                    </Typography>
-                  </Box>
-                </Box>
-                <Divider orientation="vertical" flexItem />
-                <Box>
-                  <Typography variant="h6" color="text.secondary">
-                    Humidity
-                  </Typography>
-                  <Typography variant="h4" sx={{ fontWeight: 'bold' }}>
-                    {mockTemperatureData.humidity}%
-                  </Typography>
-                </Box>
-                <Box>
-                  <Typography variant="h6" color="text.secondary">
-                    Last Updated
-                  </Typography>
-                  <Typography variant="h6" sx={{ fontWeight: 'medium' }}>
-                    {mockTemperatureData.lastUpdated}
-                  </Typography>
-                </Box>
-              </WeatherInfo>
-            </motion.div>
-          </Grid>
-        </Grid>
+        <Box sx={{ display: 'flex', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', width: '100%' }}>
+          <motion.div
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5 }}
+            style={{ width: '100%' }}
+          >
+            <UserGreeting sx={{
+              display: 'flex',
+              flexDirection: 'row',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              textAlign: 'left',
+              width: '100%',
+              mx: 'auto',
+              py: 4,
+              px: { xs: 2, sm: 4, md: 6 },
+              background: 'rgba(255,255,255,0.02)',
+              boxShadow: 3,
+            }}>
+              <Box>
+                <Typography
+                  variant="h3"
+                  sx={{
+                    fontWeight: 'bold',
+                    background: 'linear-gradient(45deg, #2196F3 30%, #21CBF3 90%)',
+                    backgroundClip: 'text',
+                    textFillColor: 'transparent',
+                    WebkitBackgroundClip: 'text',
+                    WebkitTextFillColor: 'transparent',
+                    mb: 2,
+                  }}
+                >
+                  {getTimeGreeting()}
+                </Typography>
+                <Typography variant="h6" color="text.secondary">
+                  Welcome to your Smart Home Dashboard
+                </Typography>
+              </Box>
+              <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 1, ml: 4 }}>
+                <Typography variant="subtitle1" sx={{ fontWeight: 600, mb: 1, color: 'primary.main', letterSpacing: 1 }}>
+                  House Members
+                </Typography>
+                {houseMembers.map((member) => (
+                  <Chip 
+                    key={member} 
+                    label={member} 
+                    color="primary" 
+                    variant="outlined" 
+                    sx={{ 
+                      minWidth: 160, 
+                      fontSize: '1.1rem', 
+                      fontWeight: 600, 
+                      px: 2.5, 
+                      py: 1.2, 
+                      height: 40,
+                      borderRadius: '20px',
+                      letterSpacing: 0.5,
+                    }} 
+                  />
+                ))}
+              </Box>
+            </UserGreeting>
+          </motion.div>
+        </Box>
       </DashboardBanner>
 
       {/* Two-column Layout */}
@@ -1885,6 +1936,37 @@ const Dashboard = ({ isGuest, discoveredDevices = [], roomsData, setRoomsData, u
             transition={{ duration: 0.5 }}
           >
             <StyledPaper>
+              {/* New Block: Device and Room Stats */}
+              <Box sx={{
+                display: 'flex',
+                flexDirection: { xs: 'column', sm: 'row' },
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                gap: 3,
+                mb: 4,
+                p: 3,
+                borderRadius: 3,
+                background: 'rgba(255,255,255,0.03)',
+                boxShadow: 2,
+              }}>
+                <Box>
+                  <Typography variant="subtitle1" color="text.secondary" sx={{ fontWeight: 500 }}>
+                    Devices ON / Total
+                  </Typography>
+                  <Typography variant="h5" sx={{ fontWeight: 700, color: 'primary.main' }}>
+                    {deviceStats.on} / {deviceStats.total}
+                  </Typography>
+                </Box>
+                <Box>
+                  <Typography variant="subtitle1" color="text.secondary" sx={{ fontWeight: 500 }}>
+                    Occupied Rooms / Total
+                  </Typography>
+                  <Typography variant="h5" sx={{ fontWeight: 700, color: 'secondary.main' }}>
+                    {roomStats.occupied} / {roomStats.total}
+                  </Typography>
+                </Box>
+              </Box>
+
               <Box sx={{ mb: 3 }}>
                 <Typography 
                   variant="h5" 
@@ -2152,6 +2234,7 @@ const Dashboard = ({ isGuest, discoveredDevices = [], roomsData, setRoomsData, u
       <Grid item xs={12} md={6}>
         <TemperatureDisplay roomsData={roomsData} selectedRoom={selectedRoom} setRoomsData={setRoomsData} />
       </Grid>
+
     {/* Add Room Dialog */}
     <Dialog open={addRoomDialogOpen} onClose={() => setAddRoomDialogOpen(false)}>
       <DialogTitle>Add New Room</DialogTitle>

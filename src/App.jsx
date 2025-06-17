@@ -11,7 +11,7 @@ import Home from './components/Home';
 import Login from './components/Login';
 import Registration from './components/Registration';
 import Messages from './components/Messages';
-import DeviceDiscoveryDialog from './components/DeviceDiscoveryDialog';
+import DeviceDiscovery from './components/DeviceDiscovery';
 import UserProfile from './components/UserProfile';
 import Settings from './components/Settings';
 import EnergyDetails from './components/EnergyDetails';
@@ -94,14 +94,13 @@ const initialRoomsData = {
   }
 };
 
-function App() {
+function AppContent({ themeMode, setThemeMode }) {
+  const navigate = useNavigate();
   const [authenticated, setAuthenticated] = useState(false);
   const [isGuest, setIsGuest] = useState(false);
-  const [showDiscovery, setShowDiscovery] = useState(false);
   const [discoveredDevices, setDiscoveredDevices] = useState([]);
-  const [currentPage, setCurrentPage] = useState('Dashboard');
+  const [currentPage, setCurrentPage] = useState('Login');
   const [roomsData, setRoomsData] = useState(initialRoomsData);
-  const [themeMode, setThemeMode] = useState('dark');
   const [username, setUsername] = useState('User');
 
   // Initialize with Login page if not authenticated
@@ -114,15 +113,15 @@ function App() {
   const handleLogin = (guest) => {
     setAuthenticated(true);
     setIsGuest(!!guest);
-    setShowDiscovery(true);
-    setCurrentPage('Dashboard');
+    setCurrentPage('DeviceDiscovery');
+    navigate('/device-discovery');
   };
 
   const handleRegister = (guest) => {
     setAuthenticated(true);
     setIsGuest(!!guest);
-    setCurrentPage('Dashboard');
-    setShowDiscovery(true);
+    setCurrentPage('DeviceDiscovery');
+    navigate('/device-discovery');
   };
 
   const handleLogout = () => {
@@ -131,12 +130,13 @@ function App() {
     setDiscoveredDevices([]);
     setRoomsData(initialRoomsData);
     setCurrentPage('Login');
+    navigate('/login');
   };
 
-  const handleDiscoveryDone = (devices) => {
+  const handleDiscoveryComplete = (devices) => {
     setDiscoveredDevices(devices);
-    setShowDiscovery(false);
     setCurrentPage('Dashboard');
+    navigate('/dashboard');
   };
 
   const handlePageChange = (page, options = {}) => {
@@ -144,98 +144,102 @@ function App() {
     if (options.themeMode) {
       setThemeMode(options.themeMode);
     }
+    navigate(`/${page.toLowerCase()}`);
   };
 
+  return (
+    <>
+      {authenticated ? (
+        <AppContainer>
+          <Sidebar
+            currentPage={currentPage}
+            setCurrentPage={handlePageChange}
+            authenticated={authenticated}
+            isGuest={isGuest}
+            themeMode={themeMode}
+            setThemeMode={setThemeMode}
+            onLogout={handleLogout}
+          />
+          <MainContent>
+            <Routes>
+              <Route 
+                path="/" 
+                element={<Navigate to="/dashboard" replace />} 
+              />
+              <Route 
+                path="/device-discovery" 
+                element={
+                  <DeviceDiscovery 
+                    onDiscoveryComplete={handleDiscoveryComplete}
+                    roomsData={roomsData}
+                    setRoomsData={setRoomsData}
+                  />
+                } 
+              />
+              <Route 
+                path="/dashboard" 
+                element={
+                  <Dashboard 
+                    roomsData={roomsData} 
+                    setRoomsData={setRoomsData} 
+                    themeMode={themeMode}
+                    setThemeMode={setThemeMode}
+                    username={username}
+                    discoveredDevices={discoveredDevices}
+                  />
+                } 
+              />
+              <Route 
+                path="/profile" 
+                element={<UserProfile onNavigate={handlePageChange} />} 
+              />
+              <Route 
+                path="/home" 
+                element={<Home roomsData={roomsData} setRoomsData={setRoomsData} />} 
+              />
+              <Route 
+                path="/messages" 
+                element={<Messages isGuest={isGuest} />} 
+              />
+              <Route 
+                path="/settings" 
+                element={
+                  <Settings 
+                    onThemeChange={setThemeMode}
+                    onLogout={handleLogout}
+                  />
+                } 
+              />
+              <Route 
+                path="/energy-details" 
+                element={<EnergyDetails />} 
+              />
+              <Route 
+                path="/logout" 
+                element={<Logout onLogout={handleLogout} />} 
+              />
+            </Routes>
+          </MainContent>
+        </AppContainer>
+      ) : (
+        <Routes>
+          <Route path="/login" element={<Login onLogin={handleLogin} />} />
+          <Route path="/register" element={<Registration onRegister={handleRegister} />} />
+          <Route path="*" element={<Navigate to="/login" replace />} />
+        </Routes>
+      )}
+    </>
+  );
+}
+
+function App() {
+  const [themeMode, setThemeMode] = useState('dark');
+  
   return (
     <BrowserRouter>
       <ThemeProvider theme={themeMode === 'dark' ? darkTheme : lightTheme}>
         <CssBaseline />
-        {authenticated ? (
-          <>
-            <DeviceDiscoveryDialog
-              open={showDiscovery}
-              onDone={handleDiscoveryDone}
-            />
-            {!showDiscovery && (
-              <AppContainer>
-                <Sidebar
-                  currentPage={currentPage}
-                  setCurrentPage={handlePageChange}
-                  authenticated={authenticated}
-                  isGuest={isGuest}
-                  themeMode={themeMode}
-                  setThemeMode={setThemeMode}
-                  onLogout={handleLogout}
-                />
-                <MainContent>
-                  <Routes>
-                    <Route 
-                      path="/" 
-                      element={<Navigate to="/dashboard" replace />} 
-                    />
-                    <Route 
-                      path="/dashboard" 
-                      element={
-                        <Dashboard 
-                          roomsData={roomsData} 
-                          setRoomsData={setRoomsData} 
-                          themeMode={themeMode}
-                          setThemeMode={setThemeMode}
-                          username={username}
-                          discoveredDevices={discoveredDevices}
-                        />
-                      } 
-                    />
-                    <Route 
-                      path="/profile" 
-                      element={<UserProfile onNavigate={handlePageChange} />} 
-                    />
-                    <Route 
-                      path="/home" 
-                      element={<Home roomsData={roomsData} setRoomsData={setRoomsData} />} 
-                    />
-                    <Route 
-                      path="/messages" 
-                      element={<Messages isGuest={isGuest} />} 
-                    />
-                    <Route 
-                      path="/settings" 
-                      element={
-                        <Settings 
-                          onThemeChange={setThemeMode}
-                          onLogout={handleLogout}
-                        />
-                      } 
-                    />
-                    <Route 
-                      path="/energy-details" 
-                      element={<EnergyDetails />} 
-                    />
-                    <Route 
-                      path="/logout" 
-                      element={<Logout onLogout={handleLogout} />} 
-                    />
-                  </Routes>
-                </MainContent>
-              </AppContainer>
-            )}
-          </>
-        ) : (
-          <Routes>
-            <Route 
-              path="/login" 
-              element={<Login onLogin={handleLogin} onNavigate={handlePageChange} />} 
-            />
-            <Route 
-              path="/register" 
-              element={<Registration onRegister={handleRegister} onNavigate={handlePageChange} />} 
-            />
-            <Route 
-              path="*" 
-              element={<Navigate to="/login" replace />} 
-            />
-          </Routes>
-        )}
+        <AppContent themeMode={themeMode} setThemeMode={setThemeMode} />
       </ThemeProvider>
     </BrowserRouter>
   );
