@@ -49,9 +49,10 @@ import HistoryIcon from '@mui/icons-material/History';
 import AnalyticsIcon from '@mui/icons-material/Analytics';
 import TrendingUpIcon from '@mui/icons-material/TrendingUp';
 import TrendingDownIcon from '@mui/icons-material/TrendingDown';
-import DeviceSwitch from './DeviceSwitch';
 import Chip from '@mui/material/Chip';
 import axios from 'axios'; // Import axios
+import Checkbox from '@mui/material/Checkbox';
+import FormControlLabel from '@mui/material/FormControlLabel';
 
 // Recharts components
 const RechartsLineChart = LineChart;
@@ -1599,241 +1600,251 @@ const Dashboard = ({ isGuest, discoveredDevices = [], roomsData, setRoomsData, u
   const deviceStats = getDeviceStats(roomsData);
   const roomStats = getRoomStats(roomsData);
 
+  // 1. Add state for quick access devices and dialog visibility at the top of the Dashboard component:
+  const [quickAccessDevices, setQuickAccessDevices] = React.useState([]);
+  const [editQuickAccessOpen, setEditQuickAccessOpen] = React.useState(false);
+
+  // 2. On initial mount, set default quick access devices (first 3 found):
+  React.useEffect(() => {
+    if (quickAccessDevices.length === 0) {
+      const allDevices = Object.entries(roomsData).flatMap(([roomName, roomData]) =>
+        (roomData?.devices || [])
+          .filter(device => device.name !== 'Only Smart TV')
+          .map(device => ({ ...device, room: roomName }))
+      );
+      setQuickAccessDevices(allDevices.slice(0, 3));
+    }
+  }, [roomsData]);
+
+  // 1. Add a custom handler for Smart TV in Living Room:
+  const handleSmartTVToggle = async (currentStatus) => {
+    const newStatus = !currentStatus;
+    setRoomsData(prevRoomsData => {
+      const newRoomsData = { ...prevRoomsData };
+      const deviceIdx = newRoomsData['Living Room'].devices.findIndex(d => d.name === 'Smart TV');
+      if (deviceIdx !== -1) {
+        newRoomsData['Living Room'].devices[deviceIdx] = {
+          ...newRoomsData['Living Room'].devices[deviceIdx],
+          status: newStatus
+        };
+      }
+      return newRoomsData;
+    });
+    try {
+      if (newStatus) {
+        await axios.get('http://127.0.0.1:1880/api/toggle-device');
+        console.log('Smart TV turned ON: GET /api/toggle-device');
+      } else {
+        await axios.get('http://127.0.0.1:1880/api/toggle-device-off');
+        console.log('Smart TV turned OFF: GET /api/toggle-device-off');
+      }
+    } catch (error) {
+      showToast('Failed to toggle Smart TV. Please try again.', 'error');
+      setRoomsData(prevRoomsData => {
+        const newRoomsData = { ...prevRoomsData };
+        const deviceIdx = newRoomsData['Living Room'].devices.findIndex(d => d.name === 'Smart TV');
+        if (deviceIdx !== -1) {
+          newRoomsData['Living Room'].devices[deviceIdx] = {
+            ...newRoomsData['Living Room'].devices[deviceIdx],
+            status: !newStatus
+          };
+        }
+        return newRoomsData;
+      });
+    }
+  };
+
   return (
     <Box sx={{ p: 3 }}>
-      {/* Removed DeviceSwitch component at the top */}
-      
-      <DashboardBanner>
-        <Box sx={{ display: 'flex', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', width: '100%' }}>
-          <motion.div
-            initial={{ opacity: 0, y: -20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5 }}
-            style={{ width: '100%' }}
+      <DashboardBanner
+        sx={(theme) => ({
+          background: theme.palette.mode === 'dark'
+            ? 'linear-gradient(90deg, #232526 0%, #414345 100%)'
+            : 'linear-gradient(90deg, #e3f2fd 0%, #ffffff 100%)',
+          color: theme.palette.mode === 'dark' ? theme.palette.primary.contrastText : theme.palette.text.primary,
+          borderRadius: 4,
+          p: 4,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: 4,
+          position: 'relative',
+          overflow: 'hidden',
+        })}
+      >
+        <Box>
+          <Typography
+            variant="h2"
+            sx={(theme) => ({
+              fontWeight: 800,
+              color: theme.palette.mode === 'dark' ? theme.palette.primary.main : theme.palette.primary.dark,
+              mb: 1,
+            })}
           >
-            <UserGreeting sx={{
-              display: 'flex',
-              flexDirection: 'row',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              textAlign: 'left',
-              width: '100%',
-              mx: 'auto',
-              py: 4,
-              px: { xs: 2, sm: 4, md: 6 },
-              background: 'rgba(255,255,255,0.02)',
-              boxShadow: 3,
-            }}>
-              <Box>
-                <Typography
-                  variant="h3"
-                  sx={{
-                    fontWeight: 'bold',
-                    background: 'linear-gradient(45deg, #2196F3 30%, #21CBF3 90%)',
-                    backgroundClip: 'text',
-                    textFillColor: 'transparent',
-                    WebkitBackgroundClip: 'text',
-                    WebkitTextFillColor: 'transparent',
-                    mb: 2,
-                  }}
-                >
-                  {getTimeGreeting()}
-                </Typography>
-                <Typography variant="h6" color="text.secondary">
-                  Welcome to your Smart Home Dashboard
-                </Typography>
-              </Box>
-              <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 1, ml: 4 }}>
-                <Typography variant="subtitle1" sx={{ fontWeight: 600, mb: 1, color: 'primary.main', letterSpacing: 1 }}>
-                  House Members
-                </Typography>
-                {houseMembers.map((member) => (
-                  <Chip 
-                    key={member} 
-                    label={member} 
-                    color="primary" 
-                    variant="outlined" 
-                    sx={{ 
-                      minWidth: 160, 
-                      fontSize: '1.1rem', 
-                      fontWeight: 600, 
-                      px: 2.5, 
-                      py: 1.2, 
-                      height: 40,
-                      borderRadius: '20px',
-                      letterSpacing: 0.5,
-                    }} 
-                  />
-                ))}
-              </Box>
-            </UserGreeting>
-          </motion.div>
+            {getTimeGreeting()}
+          </Typography>
+          <Typography
+            variant="subtitle1"
+            sx={(theme) => ({
+              color: theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.7)' : theme.palette.text.secondary,
+              fontWeight: 400,
+              mb: 2,
+            })}
+          >
+            Welcome to your Smart Home Dashboard
+          </Typography>
+        </Box>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+          <Box
+            sx={(theme) => ({
+              bgcolor: theme.palette.mode === 'dark' ? 'rgba(30,30,30,0.85)' : 'rgba(255,255,255,0.85)',
+              borderRadius: 3,
+              p: 3,
+              minWidth: 160,
+              textAlign: 'center',
+              border: `1.5px solid ${theme.palette.primary.main}`,
+              fontFamily: "'Orbitron', monospace",
+            })}
+          >
+            <Typography variant="h4" sx={{ fontWeight: 700, color: 'inherit', mb: 0.5 }}>
+              {currentTime.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}
+            </Typography>
+            <Typography variant="subtitle2" sx={(theme) => ({ color: theme.palette.primary.main, fontWeight: 500 })}>
+              {currentTime.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
+            </Typography>
+            <Typography variant="caption" sx={(theme) => ({ color: theme.palette.text.secondary })}>
+              {currentTime.toLocaleDateString('en-US', { weekday: 'long' })}
+            </Typography>
+          </Box>
+          <Box>
+            <Typography variant="subtitle1" sx={(theme) => ({ color: theme.palette.primary.light, fontWeight: 700, mb: 1 })}>
+              House Members
+            </Typography>
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+              {houseMembers.map((member) => (
+                <Chip
+                  key={member}
+                  label={member}
+                  avatar={<Avatar>{member[0]}</Avatar>}
+                  sx={(theme) => ({
+                    bgcolor: theme.palette.mode === 'dark' ? 'rgba(33,150,243,0.1)' : 'rgba(33,150,243,0.15)',
+                    color: theme.palette.primary.main,
+                    fontWeight: 600,
+                    fontSize: '1rem',
+                    px: 2,
+                    borderRadius: 2,
+                    transition: 'all 0.2s',
+                    '&:hover': { bgcolor: theme.palette.primary.main, color: '#fff' },
+                  })}
+                />
+              ))}
+              <IconButton color="primary" sx={{ mt: 1 }}>
+                <AddIcon />
+              </IconButton>
+            </Box>
+          </Box>
         </Box>
       </DashboardBanner>
 
       {/* Two-column Layout */}
-      <Grid container spacing={3} sx={{ mb: 3 }}>
-        {/* Left Column */}
+      <Grid container spacing={4} sx={{ mb: 3 }}>
+        {/* Weather Card */}
         <Grid item xs={12} md={6}>
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5 }}
+          <Paper
+            elevation={0}
+            sx={{
+              p: 3,
+              borderRadius: 3,
+              bgcolor: (theme) => theme.palette.mode === 'dark' ? '#23272a' : '#f5f7fa',
+              minHeight: 280,
+              display: 'flex',
+              flexDirection: 'column',
+              justifyContent: 'space-between',
+            }}
           >
-            <TimeDisplay>
-              <Typography variant="h4" sx={{ fontWeight: 'bold', mb: 0.5 }}>
-                {currentTime.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}
-              </Typography>
-              <Typography variant="h6" sx={{ fontWeight: 'medium', mb: 0.5 }}>
-                {currentTime.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
-              </Typography>
-              <Typography variant="subtitle1" color="text.secondary">
-                {currentTime.toLocaleDateString('en-US', { weekday: 'long' })}
-              </Typography>
-            </TimeDisplay>
-          </motion.div>
-
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5, delay: 0.1 }}
-          >
-            <Box sx={{ p: 2, bgcolor: 'background.paper', borderRadius: 2, mt: 2 }}>
-              <Typography variant="h6" gutterBottom>
-                House Members
-              </Typography>
-              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                {members.map((member, index) => (
-                  <MemberCard key={member.name}>
-                    <Avatar 
-                      sx={{ 
-                        bgcolor: 'primary.main',
-                        width: 40,
-                        height: 40,
-                        fontSize: '1.2rem',
-                        transition: 'all 0.3s ease',
-                        '&:hover': {
-                          transform: 'scale(1.1) rotate(360deg)',
-                        },
-                      }}
-                    >
-                      {getAvatarInitials(member.name)}
-                    </Avatar>
-                    <Box>
-                      <Typography variant="subtitle1">
-                        {member.name}
-                      </Typography>
-                      <Typography variant="caption" color="text.secondary">
-                        {member.role}
-                      </Typography>
-                    </Box>
-                  </MemberCard>
-                ))}
-              </Box>
+            <Typography variant="h6" sx={{ fontWeight: 700, mb: 2 }}>
+              Current Weather <span style={{ color: '#90caf9' }}>({weatherData.current.condition})</span>
+            </Typography>
+            <Box
+              sx={{
+                display: 'grid',
+                gridTemplateColumns: { xs: '1fr 1fr', sm: '1fr 1fr' },
+                gap: 2,
+              }}
+            >
+              {/* Weather metrics here */}
+              <WeatherCard>
+                <WbSunnyIcon sx={{ fontSize: 40, color: 'primary.main' }} />
+                <Typography variant="h6">{weatherData.current.temperature}°C</Typography>
+                <Typography variant="caption" color="text.secondary">Temperature</Typography>
+              </WeatherCard>
+              <WeatherCard>
+                <WaterDropIcon sx={{ fontSize: 40, color: 'primary.main' }} />
+                <Typography variant="h6">{weatherData.current.humidity}%</Typography>
+                <Typography variant="caption" color="text.secondary">Humidity</Typography>
+              </WeatherCard>
+              <WeatherCard>
+                <WindIcon sx={{ fontSize: 40, color: 'primary.main' }} />
+                <Typography variant="h6">{weatherData.current.windSpeed} km/h</Typography>
+                <Typography variant="caption" color="text.secondary">Wind Speed</Typography>
+              </WeatherCard>
+              <WeatherCard>
+                <UmbrellaIcon sx={{ fontSize: 40, color: 'primary.main' }} />
+                <Typography variant="h6">{weatherData.current.precipitation}%</Typography>
+                <Typography variant="caption" color="text.secondary">Precipitation</Typography>
+              </WeatherCard>
             </Box>
-          </motion.div>
-          
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5, delay: 0.2 }}
-          >
-            <Box sx={{ p: 2, bgcolor: 'background.paper', borderRadius: 2, mb: 2, mt: 2 }}>
-              <Typography variant="h6" gutterBottom>
-                Current Weather ({weatherData.current.condition})
-              </Typography>
-              <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 2, mt: 2 }}>
-                <WeatherCard>
-                  <WbSunnyIcon sx={{ fontSize: 40, color: 'primary.main' }} />
-                  <Typography variant="h6">
-                    {weatherData.current.temperature}°C
-                  </Typography>
-                  <Typography variant="caption" color="text.secondary">
-                    Temperature
-                  </Typography>
-                </WeatherCard>
-                <WeatherCard>
-                  <WaterDropIcon sx={{ fontSize: 40, color: 'primary.main' }} />
-                  <Typography variant="h6">
-                    {weatherData.current.humidity}%
-                  </Typography>
-                  <Typography variant="caption" color="text.secondary">
-                    Humidity
-                  </Typography>
-                </WeatherCard>
-                <WeatherCard>
-                  <WindIcon sx={{ fontSize: 40, color: 'primary.main' }} />
-                  <Typography variant="h6">
-                    {weatherData.current.windSpeed} km/h
-                  </Typography>
-                  <Typography variant="caption" color="text.secondary">
-                    Wind Speed
-                  </Typography>
-                </WeatherCard>
-                <WeatherCard>
-                  <UmbrellaIcon sx={{ fontSize: 40, color: 'primary.main' }} />
-                  <Typography variant="h6">
-                    {weatherData.current.precipitation}%
-                  </Typography>
-                  <Typography variant="caption" color="text.secondary">
-                    Precipitation
-                  </Typography>
-                </WeatherCard>
-              </Box>
-            </Box>
-          </motion.div>
+          </Paper>
         </Grid>
-        
-        {/* Right Column */}
+
+        {/* Quick Access Devices Card */}
         <Grid item xs={12} md={6}>
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5, delay: 0.3 }}
+          <Paper
+            elevation={0}
+            sx={{
+              p: 3,
+              borderRadius: 3,
+              bgcolor: (theme) => theme.palette.mode === 'dark' ? '#23272a' : '#f5f7fa',
+              minHeight: 280,
+              display: 'flex',
+              flexDirection: 'column',
+              justifyContent: 'space-between',
+            }}
           >
-            <Box sx={{ p: 2, bgcolor: 'background.paper', borderRadius: 2, mb: 2 }}>
-              <Typography variant="h6" gutterBottom>
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+              <Typography variant="h6" sx={{ fontWeight: 700 }}>
                 Quick Access Devices
               </Typography>
-              <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 2, mt: 2 }}>
-                {Object.entries(roomsData).flatMap(([roomName, roomData]) => 
-                  (roomData?.devices || []).slice(0, 3).map(device => ({
-                    ...device,
-                    room: roomName
-                  }))
-                ).map((device, idx) => (
-                  <DeviceCard key={device.name} status={device.status}>
-                    <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1 }}>
-                      <DeviceIcon sx={{ 
-                        color: device.status ? 'success.main' : 'grey.500',
-                        fontSize: '2rem',
-                        transition: 'all 0.3s ease',
-                        '&:hover': {
-                          transform: 'scale(1.1) rotate(360deg)',
-                        },
-                      }}>
-                        {getDeviceIcon(device.name)}
-                      </DeviceIcon>
-                      <Typography variant="subtitle2" sx={{ color: device.status ? 'success.main' : 'grey.500' }}>
-                        {device.status ? 'ON' : 'OFF'}
-                      </Typography>
-                      <Typography variant="body2" sx={{ color: 'text.secondary' }}>
-                        {device.name}
-                      </Typography>
-                      <IconToggle
-                        status={device.status}
-                        disabled={isGuest}
-                        onClick={() => !isGuest && handleDeviceToggle(device.room, device.name)}
-                        sx={{ fontSize: '1.5rem' }}
-                      >
-                        {getDeviceEmoji(device.name)}
-                      </IconToggle>
-                    </Box>
-                  </DeviceCard>
-                ))}
-              </Box>
+              <Button size="small" variant="outlined" onClick={() => setEditQuickAccessOpen(true)}>
+                Edit
+              </Button>
             </Box>
-          </motion.div>
+            <Box
+              sx={{
+                display: 'grid',
+                gridTemplateColumns: { xs: '1fr 1fr', sm: '1fr 1fr 1fr' },
+                gap: 2,
+              }}
+            >
+              {quickAccessDevices.filter(device => device.name !== 'Only Smart TV').map((device, idx) => (
+                <DeviceCard key={device.name} status={device.status}>
+                  <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1 }}>
+                    <IconToggle
+                      status={device.status}
+                      disabled={isGuest}
+                      onClick={() => !isGuest && handleDeviceToggle(device.room, device.name)}
+                      sx={{ fontSize: '1.5rem', mb: 1 }}
+                    >
+                      {getDeviceEmoji(device.name)}
+                    </IconToggle>
+                    <Typography variant="body2" sx={{ color: 'text.secondary' }}>
+                      {device.name}
+                    </Typography>
+                  </Box>
+                </DeviceCard>
+              ))}
+            </Box>
+          </Paper>
         </Grid>
       </Grid>
 
@@ -1872,19 +1883,15 @@ const Dashboard = ({ isGuest, discoveredDevices = [], roomsData, setRoomsData, u
                         >
                           <Typography
                             variant="subtitle2"
-                            sx={(theme) => ({
-                              color: theme.palette.success.main
-                            })}
+                            sx={(theme) => ({ color: theme.palette.success.main })}
                           >
-                            {roomsData[room]?.devices?.filter(device => device.status).length || 0} ON
+                            {roomsData[room]?.devices?.filter(d => d.name !== 'Only Smart TV' && d.status).length || 0} ON
                           </Typography>
                           <Typography
                             variant="subtitle2"
-                            sx={(theme) => ({
-                              color: theme.palette.error.main
-                            })}
+                            sx={(theme) => ({ color: theme.palette.error.main })}
                           >
-                            {roomsData[room]?.devices?.filter(device => !device.status).length || 0} OFF
+                            {roomsData[room]?.devices?.filter(d => d.name !== 'Only Smart TV' && !d.status).length || 0} OFF
                           </Typography>
                         </Box>
                       </Box>
@@ -1895,14 +1902,14 @@ const Dashboard = ({ isGuest, discoveredDevices = [], roomsData, setRoomsData, u
                     <Box sx={{ p: 2 }}>
                       <RoomSummary>
                         <Typography variant="subtitle2" sx={{ color: 'success.main' }}>
-                          {roomsData[room]?.devices?.filter(d => d.status).length || 0} ON
+                          {roomsData[room]?.devices?.filter(d => d.name !== 'Only Smart TV' && d.status).length || 0} ON
                         </Typography>
                         <Typography variant="subtitle2" sx={{ color: 'error.main' }}>
-                          {roomsData[room]?.devices?.filter(d => !d.status).length || 0} OFF
+                          {roomsData[room]?.devices?.filter(d => d.name !== 'Only Smart TV' && !d.status).length || 0} OFF
                         </Typography>
                       </RoomSummary>
                       <Box sx={{ mt: 2 }}>
-                        {(roomsData[room]?.devices || []).map((device, idx) => (
+                        {(roomsData[room]?.devices || []).filter(device => device.name !== 'Only Smart TV').map((device, idx) => (
                           <DeviceCard key={device.name} status={device.status}>
                             <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
                               <DeviceStatusBadge status={device.status} />
@@ -1910,14 +1917,27 @@ const Dashboard = ({ isGuest, discoveredDevices = [], roomsData, setRoomsData, u
                                 {getDeviceIcon(device.name)}
                               </DeviceIcon>
                               <Typography variant="subtitle1" sx={{ flex: 1 }}>{device.name}</Typography>
-                              <IconToggle
-                                status={device.status}
-                                disabled={isGuest}
-                                onClick={() => !isGuest && handleDeviceToggle(room, device.name)}
-                                sx={{ fontSize: '1.5rem' }}
-                              >
-                                {getDeviceEmoji(device.name)}
-                              </IconToggle>
+                              {room === 'Living Room' && device.name === 'Smart TV' ? (
+                                <>
+                                  <IconToggle
+                                    status={device.status}
+                                    disabled={isGuest}
+                                    onClick={() => !isGuest && handleSmartTVToggle(device.status)}
+                                    sx={{ fontSize: '1.5rem' }}
+                                  >
+                                    {getDeviceEmoji(device.name)}
+                                  </IconToggle>
+                                </>
+                              ) : (
+                                <IconToggle
+                                  status={device.status}
+                                  disabled={isGuest}
+                                  onClick={() => !isGuest && handleDeviceToggle(room, device.name)}
+                                  sx={{ fontSize: '1.5rem' }}
+                                >
+                                  {getDeviceEmoji(device.name)}
+                                </IconToggle>
+                              )}
                             </Box>
                           </DeviceCard>
                         ))}
@@ -2377,6 +2397,41 @@ const Dashboard = ({ isGuest, discoveredDevices = [], roomsData, setRoomsData, u
         </Alert>
       </Snackbar>
     </Box>
+
+    {/* Add a dialog for editing quick access devices at the bottom of the component: */}
+    <Dialog open={editQuickAccessOpen} onClose={() => setEditQuickAccessOpen(false)}>
+      <DialogTitle>Edit Quick Access Devices</DialogTitle>
+      <DialogContent>
+        <Typography>Select devices to show in Quick Access:</Typography>
+        <Box sx={{ mt: 2 }}>
+          {Object.entries(roomsData).flatMap(([roomName, roomData]) =>
+            (roomData?.devices || [])
+              .filter(device => device.name !== 'Only Smart TV')
+              .map(device => (
+                <FormControlLabel
+                  key={roomName + device.name}
+                  control={
+                    <Checkbox
+                      checked={quickAccessDevices.some(d => d.name === device.name && d.room === roomName)}
+                      onChange={e => {
+                        if (e.target.checked) {
+                          setQuickAccessDevices([...quickAccessDevices, { ...device, room: roomName }]);
+                        } else {
+                          setQuickAccessDevices(quickAccessDevices.filter(d => !(d.name === device.name && d.room === roomName)));
+                        }
+                      }}
+                    />
+                  }
+                  label={`${device.name} (${roomName})`}
+                />
+              ))
+          )}
+        </Box>
+      </DialogContent>
+      <DialogActions>
+        <Button onClick={() => setEditQuickAccessOpen(false)} color="primary" variant="contained">Done</Button>
+      </DialogActions>
+    </Dialog>
   </Box>
   );
 };

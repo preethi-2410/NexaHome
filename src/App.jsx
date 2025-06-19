@@ -67,6 +67,7 @@ const initialRoomsData = {
   'Living Room': {
     devices: [
       { name: 'Smart TV', status: true },
+      { name: 'Only Smart TV', status: false },
       { name: 'Air Conditioner', status: false },
       { name: 'Smart Lights', status: true },
     ]
